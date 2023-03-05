@@ -18,6 +18,9 @@
 #include <mutex>
 
 #include <smart_rtp/tcp/TcpServer.h>
+#include <smart_rtp/tcp/TcpClient.h>
+
+#include "test_cases/test_service_up_down.h"
 
 struct termios tty_attr;
 tcflag_t backup_c_lflag;
@@ -91,56 +94,8 @@ end:
 	temporary_main_locker.unlock();
 }
 
-void close_server_thread(TcpServer *server, uint32_t secs)
+bool test_client_connection()
 {
-	for(int i = secs; i > 0; i--)
-	{
-		printf("Will kill server after %d secs\n", i);
-		sleep(1);
-	}
-	server->close();
-}
-
-bool test_server_up_down(int times)
-{
-	TcpServer server(9125);
-	for(int i = 0; i < times; i++)
-	{
-		std::thread close_thread(&close_server_thread, &server, 2);
-		ConnectionStatus status;
-		if((status=server.start(NULL)) != ConnectionStatus::FinishSuccess)
-		{
-			switch(status)
-			{
-			case ConnectionStatus::FinishSuccess:
-				printf("FinishSuccess");
-				break;
-			case ConnectionStatus::SocketCreationFailed:
-				printf("SocketCreationFailed");
-				break;
-			case ConnectionStatus::SocketBindPortFailed:
-				printf("SocketBindPortFailed");
-				break;
-			case ConnectionStatus::SocketListenFailed:
-				printf("SocketListenFailed");
-				break;
-			case ConnectionStatus::ServerSocketConnectionTimeout:
-				printf("ServerSocketConnectionTimeout");
-				break;
-			case ConnectionStatus::ClientConnectionToServerFailed:
-				printf("ClientConnectionToServerFailed");
-				break;
-			case ConnectionStatus::ConnectionInitBadProtocol:
-				printf("ConnectionInitBadProtocol");
-				break;
-			}
-			if(close_thread.joinable())
-				close_thread.join();
-			return false;
-		}
-		if(close_thread.joinable())
-			close_thread.join();
-	}
 	return true;
 }
 
@@ -155,7 +110,8 @@ int main(int argc, char **argv)
 	while(!key_listener_run_flag)
 		usleep(1000);
 
-	printf("test_server_up_down: %s\n", test_server_up_down(3) ? "Success": "Fail");
+	 printf("test_server_up_down: %s\n", TestServerUpDown(3).test() ? "Success": "Fail");
+//	printf("test_client_connection: %s\n", test_client_connection() ? "Success": "Fail");
 	temporary_main_locker.lock();
 	if(key_listener_thread.joinable())
 		key_listener_thread.join();

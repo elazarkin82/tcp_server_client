@@ -16,7 +16,6 @@
 
 #include "internal_definitions.h"
 
-
 TcpServer::TcpServer(int tcp_port)
 {
 	m_self_sockfd = -1;
@@ -113,9 +112,6 @@ ConnectionStatus TcpServer::start(OnReceiveCallback *callback)
 
 			m_clients_vector_change_mutex.lock();
 			m_clients.push_back(new Client(this, connection_sockfd, (sockaddr*)&cli, callback));
-			command_to_notify_cache_size.Command = ConnectionCommands::COMMAND_NOTIFY_CURRENT_MEMORY_SIZE;
-			((size_t*) command_to_notify_cache_size.memory)[0] = m_clients.end()[0]->cache_size();
-			send(m_clients.end()[0], &command_to_notify_cache_size, sizeof(command_to_notify_cache_size));
 			m_clients_vector_change_mutex.unlock();
 		}
     }
@@ -142,11 +138,11 @@ void TcpServer::send(Client *client, void *data, size_t size)
 			"%zu: %zu bytes bigger for receive on it on other side (have %zu bytes cache), send command increase this to %zu\n",
 			client->id(), size, client->get_connection_cache_size(), ((size_t *) command.memory)[0]
 		);
-		write(client->id(), &command, sizeof(command));
+		::send(client->id(), &command, sizeof(command), 0);
 		usleep(100);
 		client->set_connection_cache_size(((size_t *) command.memory)[0]);
 	}
-	write(client->id(), data, size);
+	::send(client->id(), data, size, 0);
 }
 
 void TcpServer::close()
@@ -262,7 +258,8 @@ void TcpServer::Client::listener_fn()
 							((size_t *)(((ConnectionCommand*)m_cache)->memory))[0]
 					);
 					m_connected_cache_size = ((size_t *)(((ConnectionCommand*)m_cache)->memory))[0];
-					repeat_command.Command = ConnectionCommands::COMMAND_SUCCESS;
+					memcpy(&repeat_command, m_cache, sizeof(repeat_command));
+					((size_t *)(repeat_command.memory))[0];
 					m_server_ptr->send(this, &repeat_command, sizeof(repeat_command));
 				}
 				else
@@ -271,11 +268,16 @@ void TcpServer::Client::listener_fn()
 					m_server_ptr->send(this, &repeat_command, sizeof(repeat_command));
 				}
 			}
-			else m_on_receive_callback->onRequestToRepeat(this, m_cache, read_size);
+			else
+			{
+				// TODO care about mechanism if request not repited - warn about it and send some system notification
+				//  to continue stable communication
+				m_on_receive_callback->onRequestToRepeat(this, m_cache, read_size);
+			}
 		}
 		else if(read_size == 0)
 		{
-			// TODO disconnected trigger!
+			// TODO implement this disconnected trigger!
 			usleep(100);
 		}
 		else
