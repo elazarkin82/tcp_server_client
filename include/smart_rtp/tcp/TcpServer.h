@@ -51,10 +51,10 @@ public:
 	class OnReceiveCallback
 	{
 	public:
-		virtual ~OnReceiveCallback()=0;
-		virtual void onConnected(uint64_t client_id);
-		virtual void onDisconnected(uint64_t client_id);
-		virtual void onRequestToRepeat(Client *client, void *data, size_t size);
+		virtual ~OnReceiveCallback() {};
+		virtual void onConnected(uint64_t client_id) = 0;
+		virtual void onDisconnected(uint64_t client_id) = 0;
+		virtual void onRequestToRepeat(Client *client, void *data, size_t size) = 0;
 	};
 private:
 	int32_t m_self_sockfd;
@@ -74,6 +74,9 @@ public:
     ConnectionStatus start(OnReceiveCallback *callback);
     void send(Client *client, void *data, size_t size);
     void close();
+
+    static void print_status_name(const ConnectionStatus &status);
+
 
 private:
     void onClientReceiveCallbackWrapper(Client *client, void *data, size_t size);

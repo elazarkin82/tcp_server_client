@@ -11,6 +11,8 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <fcntl.h>
+#include <time.h>
 
 #include <smart_rtp/utils/TimeUtils.h>
 #include <smart_rtp/tcp/TcpClient.h>
@@ -41,19 +43,105 @@ TcpClient::~TcpClient()
 
 ConnectionStatus TcpClient::connect(OnConnectionStatusCallback *)
 {
+	ConnectionStatus ret_status = ConnectionStatus::Success;
 	ConnectionCommand command_to_notify_cache_size;
+	long arg;
+	fd_set myset;
+	int valopt, res;
+	struct timeval timeout;
 	struct sockaddr_in serv_addr;
 	if((m_sockfd=socket(AF_INET, SOCK_STREAM, 0)) < 0)
-		return ConnectionStatus::SocketCreationFailed;
+	{
+		ret_status = ConnectionStatus::SocketCreationFailed;
+		goto end;
+	}
 
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(m_port);
 
 	if(inet_pton(AF_INET, m_ip_addr, &serv_addr.sin_addr) <= 0)
-		return ConnectionStatus::BadServerAddress;
+	{
+		ret_status = ConnectionStatus::BadServerAddress;
+		goto end;
+	}
 
-	if(::connect(m_sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
-		return ConnectionStatus::ClientConnectionToServerFailed;
+	// Set non-blocking
+	if ((arg = fcntl(m_sockfd, F_GETFL, NULL)) < 0)
+	{
+		fprintf(stderr, "Error fcntl(..., F_GETFL) (%s)\n", strerror(errno));
+		exit(0);
+	}
+	arg |= O_NONBLOCK;
+	if (fcntl(m_sockfd, F_SETFL, arg) < 0)
+	{
+		fprintf(stderr, "Error fcntl(..., F_SETFL) (%s)\n", strerror(errno));
+		exit(0);
+	}
+	// Trying to connect with timeout
+	if ((res=::connect(m_sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr))) < 0)
+	{
+		if (errno == EINPROGRESS) {
+			fprintf(stderr, "EINPROGRESS in connect() - selecting\n");
+			do
+			{
+				timeout.tv_sec = 5;
+				timeout.tv_usec = 0;
+				FD_ZERO(&myset);
+				FD_SET(m_sockfd, &myset);
+				res = select(m_sockfd + 1, NULL, &myset, NULL, &timeout);
+				if (res < 0 && errno != EINTR)
+				{
+					fprintf(stderr, "Error connecting %d - %s\n", errno, strerror(errno));
+					ret_status = ConnectionStatus::ClientConnectionToServerFailed;
+					goto end;
+				}
+				else if (res > 0)
+				{
+					socklen_t lon;
+					// Socket selected for write
+					lon = sizeof(int);
+					if (getsockopt(m_sockfd, SOL_SOCKET, SO_ERROR, (void*) (&valopt), &lon) < 0)
+					{
+						fprintf(stderr, "Error in getsockopt() %d - %s\n", errno, strerror(errno));
+						ret_status = ConnectionStatus::ClientConnectionToServerFailed;
+						goto end;
+					}
+					// Check the value returned...
+					if (valopt)
+					{
+						fprintf(stderr, "Error in delayed connection() %d - %s\n", valopt, strerror(valopt));
+						ret_status = ConnectionStatus::ClientConnectionToServerFailed;
+						goto end;
+					}
+					break;
+				}
+				else
+				{
+					fprintf(stderr, "Timeout in select() - Canceling!\n");
+					ret_status = ConnectionStatus::ClientConnectionToServerFailed;
+					goto end;
+				}
+			}
+			while (true);
+		}
+		else
+		{
+			fprintf(stderr, "Error connecting %d - %s\n", errno, strerror(errno));
+			ret_status = ConnectionStatus::ClientConnectionToServerFailed;
+			goto end;
+		}
+	}
+	// Set to blocking mode again...
+	if ((arg = fcntl(m_sockfd, F_GETFL, NULL)) < 0) {
+		fprintf(stderr, "Error fcntl(..., F_GETFL) (%s)\n", strerror(errno));
+		exit(0);
+	}
+	arg &= (~O_NONBLOCK);
+	if (fcntl(m_sockfd, F_SETFL, arg) < 0)
+	{
+		fprintf(stderr, "Error fcntl(..., F_SETFL) (%s)\n", strerror(errno));
+		exit(0);
+	}
 
 	command_to_notify_cache_size.Command = ConnectionCommands::COMMAND_NOTIFY_CURRENT_MEMORY_SIZE;
 	((size_t*) command_to_notify_cache_size.memory)[0] = m_cache_size;
@@ -64,7 +152,14 @@ ConnectionStatus TcpClient::connect(OnConnectionStatusCallback *)
 	if(m_status_callback != NULL)
 		m_status_callback->OnConnected();
 
-	return ConnectionStatus::Success;
+end:
+	if(m_sockfd >= 0 && ret_status != ConnectionStatus::Success)
+	{
+		::close(m_sockfd);
+		m_sockfd = -1;
+	}
+
+	return ret_status;
 }
 
 bool TcpClient::send(void *data, size_t size)
@@ -74,8 +169,9 @@ bool TcpClient::send(void *data, size_t size)
 	// each send need have him receive, so it wrong create this function asyncronized!
 	std::lock_guard<std::mutex> guard(send_mutex);
 
-	::send(m_sockfd, data, size, 0);
-	read_size = ::read(m_sockfd, m_cache, m_cache_size);
+	send_wrapper(m_sockfd, data, size);
+	usleep(100);
+	read_size = receive_wrapper(m_sockfd, m_cache, m_cache_size);
 	m_last_received_time = getUseconds();
 	if(read_size == sizeof(ConnectionCommand) && strcmp(((ConnectionCommand*)m_cache)->MAGIC_KEY, "SmartRtpConnectionCommand") == 0)
 	{
@@ -94,7 +190,7 @@ bool TcpClient::send(void *data, size_t size)
 			}
 			if(new_size > m_cache_size)
 			{
-				printf("update cache memory from %zu to %zu\n", m_cache_size, new_size);
+				printf("%u: update cache memory from %zu to %zu\n", m_sockfd, m_cache_size, new_size);
 				if(realloc(m_cache, new_size) == NULL)
 				{
 					fprintf(stderr, "Have serious problem - FAIL REALLOC MEMORY!\n");
@@ -103,7 +199,7 @@ bool TcpClient::send(void *data, size_t size)
 				m_cache_size = new_size;
 			}
 			// after system command we still wait to actual data
-			read_size = ::read(m_sockfd, m_cache, m_cache_size);
+			read_size = receive_wrapper(m_sockfd, m_cache, m_cache_size);
 		}
 		else if(((ConnectionCommand*)m_cache)->Command == COMMAND_NOTIFY_CURRENT_MEMORY_SIZE)
 			m_connected_cache_size = ((size_t *)(((ConnectionCommand*)m_cache)->memory))[0];
@@ -112,6 +208,11 @@ bool TcpClient::send(void *data, size_t size)
 			// Do nothing in this case - this is repeating ping thread
 			// TODO add disconnection thread
 			// that check last receive and kill the client someself if connection failed
+			return true;
+		}
+		else if(((ConnectionCommand*)m_cache)->Command == COMMAND_NOT_FOUND)
+		{
+			printf("%u: ERROR - COMMAND_NOT_FOUND!\n", m_sockfd);
 			return true;
 		}
 		// TODO add server fail exit case!
@@ -136,10 +237,14 @@ void TcpClient::disconnect()
 	{
 		if(m_ping_send_thread->joinable())
 			m_ping_send_thread->join();
-		delete(m_ping_send_thread);
+		delete m_ping_send_thread;
+		m_ping_send_thread = NULL;
 	}
 	if(m_sockfd >= 0)
+	{
 		::close(m_sockfd);
+		m_sockfd = -1;
+	}
 }
 
 void TcpClient::ping_thread_fn()
@@ -152,4 +257,8 @@ void TcpClient::ping_thread_fn()
 		send(&command, sizeof(command));
 		sleep(1);
 	}
+	printf("%u: ping_thread_fn finish!\n", m_sockfd);
 }
+
+const char *TcpClient::ip(){return m_ip_addr;}
+const uint16_t TcpClient::port(){return m_port;}

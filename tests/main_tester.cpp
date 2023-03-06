@@ -20,24 +20,21 @@
 #include <smart_rtp/tcp/TcpServer.h>
 #include <smart_rtp/tcp/TcpClient.h>
 
-#include "test_cases/test_service_up_down.h"
+#include "test_cases/test_service_up_down.hpp"
+#include "test_cases/test_client_connection.hpp"
+
+#include "helpful.h"
 
 struct termios tty_attr;
 tcflag_t backup_c_lflag;
 
+char program[256];
+
 void sig_handler(int sig)
 {
 	void *array[10];
-	size_t size = backtrace(array, 10);
-	tty_attr.c_cflag = backup_c_lflag;
-	if (tcsetattr(STDIN_FILENO, 0, &tty_attr) < 0)
-		fprintf(stderr, "tcgetattr failed!\n");
-
-	printf("sig_handler %d\n", sig);
 	fprintf(stderr, "Error: signal %d:\n", sig);
-	backtrace_symbols_fd(array, size, STDERR_FILENO);
-	for(int i = 0; i < size; i++)
-		printf("0x%04x\n", (uintptr_t)array[i]);
+	print_stack(program, "/tmp/crash.txt");
 	exit(sig);
 }
 
@@ -101,20 +98,21 @@ bool test_client_connection()
 
 int main(int argc, char **argv)
 {
-	std::thread key_listener_thread(key_listener);
+	sprintf(program, "%s", argv[0]);
+//	std::thread key_listener_thread(key_listener);
 	signal(SIGINT, sig_handler);
 	signal(SIGSEGV, sig_handler);
 	signal(SIGTERM, sig_handler);
 	signal(SIGABRT, sig_handler);
 	signal(SIGTRAP, sig_handler);
-	while(!key_listener_run_flag)
-		usleep(1000);
+//	while(!key_listener_run_flag)
+//		usleep(1000);
 
-	 printf("test_server_up_down: %s\n", TestServerUpDown(3).test() ? "Success": "Fail");
-//	printf("test_client_connection: %s\n", test_client_connection() ? "Success": "Fail");
-	temporary_main_locker.lock();
-	if(key_listener_thread.joinable())
-		key_listener_thread.join();
-	printf("TODO - implement tester\n");
+//	 printf("test_server_up_down: %s\n", TestServerUpDown(3).test() ? "Success": "Fail");
+	printf("test_client_connection: %s\n", TestClientConnection().test() ? "Success": "Fail");
+//	temporary_main_locker.lock();
+//	if(key_listener_thread.joinable())
+//		key_listener_thread.join();
+//	printf("TODO - implement tester\n");
 	return 0;
 }

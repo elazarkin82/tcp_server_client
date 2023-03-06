@@ -5,8 +5,8 @@
  *      Author: elazarkin
  */
 
-#ifndef TESTS_TEST_CASES_TEST_SERVICE_UP_DOWN_H_
-#define TESTS_TEST_CASES_TEST_SERVICE_UP_DOWN_H_
+#ifndef TESTS_TEST_CASES_TEST_SERVICE_UP_DOWN_HPP_
+#define TESTS_TEST_CASES_TEST_SERVICE_UP_DOWN_HPP_
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -17,8 +17,7 @@
 
 #include <smart_rtp/tcp/TcpServer.h>
 #include <smart_rtp/tcp/TcpClient.h>
-#include <smart_rtp/tcp/definitions.h>
-#include "testcase_interface.h"
+#include "testcase_interface.hpp"
 
 class TestServerUpDown: public BaseTestInterface
 {
@@ -29,6 +28,8 @@ public:
 	{
 		m_times = times;
 	}
+
+	virtual ~TestServerUpDown(){}
 
 private:
 	void close_server_thread(TcpServer *server, uint32_t secs)
@@ -51,7 +52,7 @@ public:
 			ConnectionStatus status;
 			if((status=server.start(NULL)) != ConnectionStatus::FinishSuccess)
 			{
-				print_status_name(status);
+				TcpServer::print_status_name(status);
 				if(close_thread.joinable())
 					close_thread.join();
 				return false;
@@ -59,9 +60,9 @@ public:
 			if(close_thread.joinable())
 				close_thread.join();
 		}
-			return true;
+		return true;
 	}
 };
 
 
-#endif /* TESTS_TEST_CASES_TEST_SERVICE_UP_DOWN_H_ */
+#endif /* TESTS_TEST_CASES_TEST_SERVICE_UP_DOWN_HPP_ */

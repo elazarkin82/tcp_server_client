@@ -18,13 +18,14 @@
 
 class TcpClient
 {
+public:
 	class OnConnectionStatusCallback
 	{
 	public:
-		virtual ~OnConnectionStatusCallback()=0;
-		virtual void OnConnected();
-		virtual void OnDisconnected();
-		virtual void OnDataReceived(void *data, size_t);
+		virtual ~OnConnectionStatusCallback() {};
+		virtual void OnConnected()=0;
+		virtual void OnDisconnected()=0;
+		virtual void OnDataReceived(void *data, size_t)=0;
 	};
 private:
 	uint32_t m_sockfd;
@@ -49,6 +50,8 @@ public:
 	size_t receive_data_size();
 	bool is_connected();
 	void ping_thread_fn();
+	const char *ip();
+	const uint16_t port();
 
 };
 

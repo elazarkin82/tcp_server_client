@@ -18,32 +18,4 @@ enum ConnectionStatus
     ConnectionInitBadProtocol
 };
 
-void print_status_name(ConnectionStatus status)
-{
-	switch(status)
-	{
-	case ConnectionStatus::FinishSuccess:
-		printf("FinishSuccess");
-		break;
-	case ConnectionStatus::SocketCreationFailed:
-		printf("SocketCreationFailed");
-		break;
-	case ConnectionStatus::SocketBindPortFailed:
-		printf("SocketBindPortFailed");
-		break;
-	case ConnectionStatus::SocketListenFailed:
-		printf("SocketListenFailed");
-		break;
-	case ConnectionStatus::ServerSocketConnectionTimeout:
-		printf("ServerSocketConnectionTimeout");
-		break;
-	case ConnectionStatus::ClientConnectionToServerFailed:
-		printf("ClientConnectionToServerFailed");
-		break;
-	case ConnectionStatus::ConnectionInitBadProtocol:
-		printf("ConnectionInitBadProtocol");
-		break;
-	}
-}
-
 #endif //MAFHIDYONIM_DEFENITIONS_H

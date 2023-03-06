@@ -138,11 +138,11 @@ void TcpServer::send(Client *client, void *data, size_t size)
 			"%zu: %zu bytes bigger for receive on it on other side (have %zu bytes cache), send command increase this to %zu\n",
 			client->id(), size, client->get_connection_cache_size(), ((size_t *) command.memory)[0]
 		);
-		::send(client->id(), &command, sizeof(command), 0);
+		send_wrapper(client->id(), &command, sizeof(command));
 		usleep(100);
 		client->set_connection_cache_size(((size_t *) command.memory)[0]);
 	}
-	::send(client->id(), data, size, 0);
+	send_wrapper(client->id(), data, size);
 }
 
 void TcpServer::close()
@@ -177,6 +177,34 @@ size_t TcpServer::get_used_cache_size()
 	return cache_size;
 }
 
+void TcpServer::print_status_name(const ConnectionStatus &status)
+{
+	switch(status)
+	{
+	case ConnectionStatus::FinishSuccess:
+		printf("FinishSuccess");
+		break;
+	case ConnectionStatus::SocketCreationFailed:
+		printf("SocketCreationFailed");
+		break;
+	case ConnectionStatus::SocketBindPortFailed:
+		printf("SocketBindPortFailed");
+		break;
+	case ConnectionStatus::SocketListenFailed:
+		printf("SocketListenFailed");
+		break;
+	case ConnectionStatus::ServerSocketConnectionTimeout:
+		printf("ServerSocketConnectionTimeout");
+		break;
+	case ConnectionStatus::ClientConnectionToServerFailed:
+		printf("ClientConnectionToServerFailed");
+		break;
+	case ConnectionStatus::ConnectionInitBadProtocol:
+		printf("ConnectionInitBadProtocol");
+		break;
+	}
+}
+
 TcpServer::Client::Client(TcpServer *server_ptr, int32_t connection_sockfd, sockaddr *addr, OnReceiveCallback *on_receive_callback)
 {
 	int thread_fail_counter = 100;
@@ -199,19 +227,35 @@ TcpServer::Client::Client(TcpServer *server_ptr, int32_t connection_sockfd, sock
 TcpServer::Client::~Client()
 {
 	m_listener_alive = false;
+	::shutdown(m_client_id, 2);
 	::close(m_client_id);
+	m_client_id = -1;
 	if(m_listener->joinable())
+	{
+		printf("m_listener_joinable!\n");
 		m_listener->join();
+		printf("m_listener_joinable & join finish!\n");
+	}
+	else printf("m_listener_NOT_joinable & join not started!\n");
 	delete m_listener;
-	free(m_cache);
+	if(m_cache != NULL)
+		free(m_cache);
 }
 
 void TcpServer::Client::listener_fn()
 {
+	struct timeval timeout;
+	timeout.tv_sec = 5;
+	timeout.tv_usec = 0;
+	if (setsockopt (m_client_id, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof timeout) < 0)
+		fprintf(stderr, "Warning: setsockopt SO_RCVTIMEO failed\n");
+	if (setsockopt (m_client_id, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof timeout) < 0)
+		fprintf(stderr, "Warning: setsockopt failed\n");
+
 	m_listener_alive = true;
 	while(m_listener_alive)
 	{
-		size_t read_size = ::read(m_client_id, m_cache, m_cache_size);
+		size_t read_size = receive_wrapper(m_client_id, m_cache, m_cache_size);
 
 		if(read_size > 0)
 		{
@@ -262,8 +306,14 @@ void TcpServer::Client::listener_fn()
 					((size_t *)(repeat_command.memory))[0];
 					m_server_ptr->send(this, &repeat_command, sizeof(repeat_command));
 				}
+				else if(((ConnectionCommand*)m_cache)->Command == COMMAND_ALIVE)
+				{
+					memcpy(&repeat_command, m_cache, sizeof(repeat_command));
+					m_server_ptr->send(this, &repeat_command, sizeof(repeat_command));
+				}
 				else
 				{
+					printf("%zu: COMMAND_NOT_FOUND!\n", m_client_id);
 					repeat_command.Command = ConnectionCommands::COMMAND_NOT_FOUND;
 					m_server_ptr->send(this, &repeat_command, sizeof(repeat_command));
 				}
