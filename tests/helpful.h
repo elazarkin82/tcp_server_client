@@ -8,7 +8,6 @@
 #ifndef TESTS_HELPFUL_H_
 #define TESTS_HELPFUL_H_
 
-#ifdef USE_LD_TRACE
 #include <stdio.h>
 #include <string.h>
 #include <execinfo.h>
@@ -127,11 +126,5 @@ void print_stack(const char* program, const char* log_file_path)
     fclose(log_file);
     free(symbols);
 }
-#else
-void print_stack(const char* program, const char* log_file_path)
-{
-	printf("Cant print_stack cause USE_LD_TRACE not defined!\n");
-}
-#endif
 
 #endif /* TESTS_HELPFUL_H_ */

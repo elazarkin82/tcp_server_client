@@ -15,4 +15,4 @@ file(GLOB_RECURSE SMART_RTP_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 add_library(smart_rtp_static STATIC ${SMART_RTP_SRC})
 
 add_executable(tcp_server_client_tester ${CMAKE_CURRENT_SOURCE_DIR}/tests/main_tester.cpp)
-target_link_libraries(tcp_server_client_tester pthread smart_rtp_static)
+target_link_libraries(tcp_server_client_tester pthread smart_rtp_static ${CMAKE_DL_LIBS})
