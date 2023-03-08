@@ -42,15 +42,25 @@ private:
 		}
 		void onRequestToRepeat(TcpServer::Client *client, void *data, size_t size)
 		{
-			if(strcmp((char *)data, "hello from client!") == 0)
+			const char test1_header[] = "hello from client!";
+			const char test2_header[] = "test_2_";
+			if(strncmp((char *)data, test1_header, sizeof(test1_header)) == 0)
 			{
 				char out[] = "hello from server!";
 				printf("server_onRequestToRepeat: %s(%zu)\n", (char *)data, size);
 				m_parent->send(client, out, sizeof(out));
 			}
+			else if(strncmp((char *)data, test2_header, sizeof(test2_header) - 1) == 0)
+			{
+				char *temp = (char *) malloc(size);
+				for(int i = 0; i < size; i++)
+					temp[i] = ((char *)data)[size - i -1];
+				m_parent->send(client, temp, size);
+				free(temp);
+			}
 			else
 			{
-				printf("server_onRequestToRepeat(unknow request): %s(%zu)\n", (char *)data, size);
+				printf("server_onRequestToRepeat(unknow request): %.10s...(%zu)\n", (char *)data, size);
 				m_parent->send(client, data, size);
 			}
 		}
@@ -129,6 +139,7 @@ public:
 			goto end;
 		}
 
+		// Test1 Hello!
 		memset(data, 0, sizeof(data));
 		sprintf(data, "hello from client!");
 		client.send(data, strlen(data));
@@ -138,10 +149,29 @@ public:
 			m_test_success = false;
 			goto end;
 		}
-		printf("before client.disconnect()\n");
-		client.disconnect();
-		printf("after client.disconnect()\n");
+
+		// Test2 - resize cache! Send random data and expect receive reverse data and cache_size of server and client equal to sizeof(data)
+		for(int i = 0; i < sizeof(data); i++)
+		{
+			const char test2_header[] = "test_2_";
+			if(i < strlen(test2_header))
+				data[i] = test2_header[i];
+			else
+				data[i] = (char)(32 + rand()%80);
+		}
+		client.send(data, sizeof(data));
+		for(int i = 0; i < sizeof(data); i++)
+		{
+			int index = (int)(sizeof(data) - i - 1);
+			if(((char*)client.received_data())[i] != data[index])
+			{
+				m_test_success = false;
+				goto end;
+			}
+		}
+
 end:
+		client.disconnect();
 		if(m_server && m_server_up)
 			m_server->close();
 		if(m_server_thread->joinable())

@@ -108,7 +108,7 @@ int main(int argc, char **argv)
 //	while(!key_listener_run_flag)
 //		usleep(1000);
 
-//	 printf("test_server_up_down: %s\n", TestServerUpDown(3).test() ? "Success": "Fail");
+	printf("test_server_up_down: %s\n", TestServerUpDown(3).test() ? "Success": "Fail");
 	printf("test_client_connection: %s\n", TestClientConnection().test() ? "Success": "Fail");
 //	temporary_main_locker.lock();
 //	if(key_listener_thread.joinable())

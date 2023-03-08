@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.18.4)
 project("smart_rtp_static")
 
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g -fPIC")
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 

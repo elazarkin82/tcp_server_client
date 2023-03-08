@@ -169,8 +169,69 @@ bool TcpClient::send(void *data, size_t size)
 	// each send need have him receive, so it wrong create this function asyncronized!
 	std::lock_guard<std::mutex> guard(send_mutex);
 
+	if(size > m_connected_cache_size)
+	{
+		ConnectionCommand resize_cache_command;
+
+		printf(
+			"%u(client): will send data size bigger of server_cache! (%zu/%zu) send COMMAND_SET_MEMORY_SIZE_CAPACITY!\n",
+			m_sockfd, m_connected_cache_size, size
+		);
+		resize_cache_command.Command = ConnectionCommands::COMMAND_SET_MEMORY_SIZE_CAPACITY;
+		((size_t*)resize_cache_command.memory)[0] = size + 1024;
+		send_wrapper(m_sockfd, &resize_cache_command, sizeof(resize_cache_command));
+		read_size = receive_wrapper(m_sockfd, m_cache, m_cache_size);
+
+		// TODO CRITICAL!- this line repeat already existed lines below!!!!!!!!!!
+		if(((ConnectionCommand*)m_cache)->Command == COMMAND_SET_MEMORY_SIZE_CAPACITY)
+		{
+			size_t new_size = ((size_t *)(((ConnectionCommand*)m_cache)->memory))[0];
+			static const size_t MAX_ALLOCATION_SIZE = 100*1024*1024; // 100 MB
+
+			if(new_size > MAX_ALLOCATION_SIZE)
+			{
+				fprintf(
+					stderr, "Still not implemented BIG CACHE (more of %3.2f MB) size! This is critical error that close server!\n",
+					MAX_ALLOCATION_SIZE/(1024.0f*1024)
+				);
+				exit(137);
+			}
+			if(new_size > m_cache_size)
+			{
+				printf("%u: update cache memory from %zu to %zu\n", m_sockfd, m_cache_size, new_size);
+				free(m_cache);
+				if((m_cache=malloc(new_size)) == NULL)
+				{
+					fprintf(stderr, "Have serious problem - FAIL REALLOC MEMORY!\n");
+					exit(137);
+				}
+				m_cache_size = new_size;
+			}
+			// after system command we still wait to actual data
+			read_size = receive_wrapper(m_sockfd, m_cache, m_cache_size);
+		}
+
+		if(read_size == sizeof(ConnectionCommand) && strcmp(((ConnectionCommand*)m_cache)->MAGIC_KEY, "SmartRtpConnectionCommand") == 0)
+		{
+			// TODO - this line repeat already existed lines below
+			if(((ConnectionCommand*)m_cache)->Command == COMMAND_NOTIFY_CURRENT_MEMORY_SIZE)
+				m_connected_cache_size = ((size_t *)(((ConnectionCommand*)m_cache)->memory))[0];
+			else
+			{
+				fprintf(
+					stderr, "%u: unexpected error in COMMAND_SET_MEMORY_SIZE_CAPACITY case (command=%d)!\n", m_sockfd, ((ConnectionCommand*)m_cache)->Command
+				);
+				exit(124);
+			}
+		}
+		else
+		{
+			fprintf(stderr, "unexpected error in COMMAND_SET_MEMORY_SIZE_CAPACITY case_2!\n");
+			exit(125);
+		}
+	}
+
 	send_wrapper(m_sockfd, data, size);
-	usleep(100);
 	read_size = receive_wrapper(m_sockfd, m_cache, m_cache_size);
 	m_last_received_time = getUseconds();
 	if(read_size == sizeof(ConnectionCommand) && strcmp(((ConnectionCommand*)m_cache)->MAGIC_KEY, "SmartRtpConnectionCommand") == 0)
@@ -191,7 +252,8 @@ bool TcpClient::send(void *data, size_t size)
 			if(new_size > m_cache_size)
 			{
 				printf("%u: update cache memory from %zu to %zu\n", m_sockfd, m_cache_size, new_size);
-				if(realloc(m_cache, new_size) == NULL)
+				free(m_cache);
+				if((m_cache=malloc(new_size)) == NULL)
 				{
 					fprintf(stderr, "Have serious problem - FAIL REALLOC MEMORY!\n");
 					exit(137);

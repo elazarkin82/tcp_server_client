@@ -33,7 +33,7 @@ inline void send_wrapper(int sockfd, const void *data, size_t size)
 {
 	printf("%d: send_wrapper send_prepare %zu(%zu)\n", sockfd, size, sizeof(size));
 	::send(sockfd, &size, sizeof(size), 0);
-	printf("%d: send_wrapper send %s(%zu)\n", sockfd, (char *) data, size);
+	printf("%d: send_wrapper send %.10s... (%zu)\n", sockfd, (char *) data, size);
 	::send(sockfd, data, size, 0);
 }
 
@@ -64,9 +64,8 @@ inline size_t receive_wrapper(int sockfd, void *cache, size_t max_size)
 			return curr_read_size;
 	}
 
-	printf("%d: send_wrapper receive %s(%zu, read_size at and = %zu <- should be 0)\n", sockfd, (char *) cache, ret, (read_size));
+	printf("%d: send_wrapper receive %.10s... (%zu, read_size at and = %zu <- should be 0)\n", sockfd, (char *) cache, ret, (read_size));
 	return ret;
 }
-
 
 #endif /* SRC_TCP_INTERNAL_DEFINITIONS_H_ */

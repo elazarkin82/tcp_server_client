@@ -55,7 +55,7 @@ void TcpServer::ping_checker_thread()
 				else i++;
 			}
 		}
-		usleep(1000000);
+		sleep(1);
 	}
 	printf("ping thread finish!\n");
 }
@@ -139,7 +139,6 @@ void TcpServer::send(Client *client, void *data, size_t size)
 			client->id(), size, client->get_connection_cache_size(), ((size_t *) command.memory)[0]
 		);
 		send_wrapper(client->id(), &command, sizeof(command));
-		usleep(100);
 		client->set_connection_cache_size(((size_t *) command.memory)[0]);
 	}
 	send_wrapper(client->id(), data, size);
@@ -231,12 +230,7 @@ TcpServer::Client::~Client()
 	::close(m_client_id);
 	m_client_id = -1;
 	if(m_listener->joinable())
-	{
-		printf("m_listener_joinable!\n");
 		m_listener->join();
-		printf("m_listener_joinable & join finish!\n");
-	}
-	else printf("m_listener_NOT_joinable & join not started!\n");
 	delete m_listener;
 	if(m_cache != NULL)
 		free(m_cache);
@@ -268,6 +262,8 @@ void TcpServer::Client::listener_fn()
 					size_t new_size = ((size_t *)(((ConnectionCommand*)m_cache)->memory))[0];
 					static const size_t MAX_ALLOCATION_SIZE = 100*1024*1024; // 100 MB
 
+					printf("%zu: have COMMAND_SET_MEMORY_SIZE_CAPACITY to %zu B\n", m_client_id, new_size);
+
 					if(new_size > MAX_ALLOCATION_SIZE)
 					{
 						fprintf(
@@ -281,8 +277,9 @@ void TcpServer::Client::listener_fn()
 
 					if(new_size > m_cache_size)
 					{
-						printf("update cache memory from %zu to %zu\n", m_cache_size, new_size);
-						if(realloc(m_cache, new_size) == NULL)
+						printf("%zu: update cache memory from %zu to %zu\n", m_client_id, m_cache_size, new_size);
+						free(m_cache);
+						if((m_cache = malloc(new_size)) == NULL)
 						{
 							fprintf(stderr, "Have serious problem - FAIL REALLOC MEMORY!\n");
 							repeat_command.Command = ConnectionCommands::COMMAND_CRITICAL_ERROR_EXIT;
@@ -291,7 +288,8 @@ void TcpServer::Client::listener_fn()
 						}
 						m_cache_size = new_size;
 					}
-					repeat_command.Command = ConnectionCommands::COMMAND_SUCCESS;
+					repeat_command.Command = ConnectionCommands::COMMAND_NOTIFY_CURRENT_MEMORY_SIZE;
+					((size_t*)repeat_command.memory)[0] = m_cache_size;
 					m_server_ptr->send(this, &repeat_command, sizeof(repeat_command));
 				}
 				else if(((ConnectionCommand*)m_cache)->Command == COMMAND_NOTIFY_CURRENT_MEMORY_SIZE)
