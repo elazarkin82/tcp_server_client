@@ -128,7 +128,9 @@ void TcpServer::onClientReceiveCallbackWrapper(Client *client, void *data, size_
 
 void TcpServer::send(Client *client, void *data, size_t size)
 {
+#ifdef DEBUG_PRINTS
 	printf("%zu try send %zu bytes\n", client->id(), size);
+#endif
 	if(size > client->get_connection_cache_size())
 	{
 		ConnectionCommand command;

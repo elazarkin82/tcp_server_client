@@ -31,9 +31,13 @@ struct ConnectionCommand
 
 inline void send_wrapper(int sockfd, const void *data, size_t size)
 {
+#ifdef DEBUG_PRINTS
 	printf("%d: send_wrapper send_prepare %zu(%zu)\n", sockfd, size, sizeof(size));
+#endif
 	::send(sockfd, &size, sizeof(size), 0);
+#ifdef DEBUG_PRINTS
 	printf("%d: send_wrapper send %.10s... (%zu)\n", sockfd, (char *) data, size);
+#endif
 	::send(sockfd, data, size, 0);
 }
 
@@ -51,7 +55,9 @@ inline size_t receive_wrapper(int sockfd, void *cache, size_t max_size)
 			return curr_read_size;
 	}
 
+#ifdef DEBUG_PRINTS
 	printf("%d: send_wrapper receive_prepare %zu(%zu)\n", sockfd, ret, sizeof(ret));
+#endif
 
 	read_size = ret;
 	memset(cache, 0, max_size);
@@ -63,8 +69,9 @@ inline size_t receive_wrapper(int sockfd, void *cache, size_t max_size)
 		else
 			return curr_read_size;
 	}
-
+#ifdef DEBUG_PRINTS
 	printf("%d: send_wrapper receive %.10s... (%zu, read_size at and = %zu <- should be 0)\n", sockfd, (char *) cache, ret, (read_size));
+#endif
 	return ret;
 }
 

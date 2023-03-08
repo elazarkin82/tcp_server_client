@@ -8,11 +8,11 @@
 #ifndef TESTS_HELPFUL_H_
 #define TESTS_HELPFUL_H_
 
-#include <dlfcn.h>
 #include <stdio.h>
 #include <string.h>
 #include <execinfo.h>
 #include <stdlib.h>
+#include <dlfcn.h>
 
 char* addr2line_format(void* addr, char* symbol, char* buffer, int nn_buffer, const char *program)
 {
