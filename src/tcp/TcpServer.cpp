@@ -120,13 +120,13 @@ ConnectionStatus TcpServer::start(OnReceiveCallback *callback)
 }
 
 // TODO not used!
-void TcpServer::onClientReceiveCallbackWrapper(Client *client, void *data, size_t size)
+void TcpServer::onClientReceiveCallbackWrapper(Client *client, void *data, uint32_t size)
 {
 	std::lock_guard<std::mutex> mutex_guard(m_callback_call_mutex);
 	m_callback->onRequestToRepeat(client, data, size);
 }
 
-void TcpServer::send(Client *client, void *data, size_t size)
+void TcpServer::send(Client *client, void *data, uint32_t size)
 {
 #ifdef DEBUG_PRINTS
 	printf("%zu try send %zu bytes\n", client->id(), size);
@@ -135,13 +135,13 @@ void TcpServer::send(Client *client, void *data, size_t size)
 	{
 		ConnectionCommand command;
 		command.Command = COMMAND_SET_MEMORY_SIZE_CAPACITY;
-		((size_t *) command.memory)[0] = size + 1024;
+		((uint32_t *) command.memory)[0] = size + 1024;
 		printf(
 			"%zu: %zu bytes bigger for receive on it on other side (have %zu bytes cache), send command increase this to %zu\n",
-			client->id(), size, client->get_connection_cache_size(), ((size_t *) command.memory)[0]
+			client->id(), size, client->get_connection_cache_size(), ((uint32_t *) command.memory)[0]
 		);
 		send_wrapper(client->id(), &command, sizeof(command));
-		client->set_connection_cache_size(((size_t *) command.memory)[0]);
+		client->set_connection_cache_size(((uint32_t *) command.memory)[0]);
 	}
 	send_wrapper(client->id(), data, size);
 }
@@ -168,10 +168,10 @@ void TcpServer::close()
 	 printf("server closed success!\n");
 }
 
-size_t TcpServer::get_used_cache_size()
+uint32_t TcpServer::get_used_cache_size()
 {
 	std::lock_guard<std::mutex> guard(m_clients_vector_change_mutex);
-	size_t cache_size = 0;
+	uint32_t cache_size = 0;
 	for(Client *c:m_clients)
 		cache_size += c->cache_size();
 
@@ -251,7 +251,7 @@ void TcpServer::Client::listener_fn()
 	m_listener_alive = true;
 	while(m_listener_alive)
 	{
-		size_t read_size = receive_wrapper(m_client_id, m_cache, m_cache_size);
+		uint32_t read_size = receive_wrapper(m_client_id, m_cache, m_cache_size);
 
 		if(read_size > 0)
 		{
@@ -261,8 +261,8 @@ void TcpServer::Client::listener_fn()
 				ConnectionCommand repeat_command;
 				if(((ConnectionCommand*)m_cache)->Command == COMMAND_SET_MEMORY_SIZE_CAPACITY)
 				{
-					size_t new_size = ((size_t *)(((ConnectionCommand*)m_cache)->memory))[0];
-					static const size_t MAX_ALLOCATION_SIZE = 100*1024*1024; // 100 MB
+					uint32_t new_size = ((uint32_t *)(((ConnectionCommand*)m_cache)->memory))[0];
+					static const uint32_t MAX_ALLOCATION_SIZE = 100*1024*1024; // 100 MB
 
 					printf("%zu: have COMMAND_SET_MEMORY_SIZE_CAPACITY to %zu B\n", m_client_id, new_size);
 
@@ -291,7 +291,7 @@ void TcpServer::Client::listener_fn()
 						m_cache_size = new_size;
 					}
 					repeat_command.Command = ConnectionCommands::COMMAND_NOTIFY_CURRENT_MEMORY_SIZE;
-					((size_t*)repeat_command.memory)[0] = m_cache_size;
+					((uint32_t*)repeat_command.memory)[0] = m_cache_size;
 					m_server_ptr->send(this, &repeat_command, sizeof(repeat_command));
 				}
 				else if(((ConnectionCommand*)m_cache)->Command == COMMAND_NOTIFY_CURRENT_MEMORY_SIZE)
@@ -299,11 +299,11 @@ void TcpServer::Client::listener_fn()
 					printf(
 							"%zu: get notification about memory size of other side %zu\n",
 							m_client_id,
-							((size_t *)(((ConnectionCommand*)m_cache)->memory))[0]
+							((uint32_t *)(((ConnectionCommand*)m_cache)->memory))[0]
 					);
-					m_connected_cache_size = ((size_t *)(((ConnectionCommand*)m_cache)->memory))[0];
+					m_connected_cache_size = ((uint32_t *)(((ConnectionCommand*)m_cache)->memory))[0];
 					memcpy(&repeat_command, m_cache, sizeof(repeat_command));
-					((size_t *)(repeat_command.memory))[0];
+					((uint32_t *)(repeat_command.memory))[0];
 					m_server_ptr->send(this, &repeat_command, sizeof(repeat_command));
 				}
 				else if(((ConnectionCommand*)m_cache)->Command == COMMAND_ALIVE)
@@ -335,17 +335,17 @@ void TcpServer::Client::listener_fn()
 	}
 }
 
-size_t TcpServer::Client::cache_size()
+uint32_t TcpServer::Client::cache_size()
 {
 	return m_cache_size;
 }
 
-size_t TcpServer::Client::get_connection_cache_size()
+uint32_t TcpServer::Client::get_connection_cache_size()
 {
 	return m_connected_cache_size;
 }
 
-void TcpServer::Client::set_connection_cache_size(size_t size)
+void TcpServer::Client::set_connection_cache_size(uint32_t size)
 {
 	m_connected_cache_size = size;
 }

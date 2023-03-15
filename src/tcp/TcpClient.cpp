@@ -144,7 +144,7 @@ ConnectionStatus TcpClient::connect(OnConnectionStatusCallback *)
 	}
 
 	command_to_notify_cache_size.Command = ConnectionCommands::COMMAND_NOTIFY_CURRENT_MEMORY_SIZE;
-	((size_t*) command_to_notify_cache_size.memory)[0] = m_cache_size;
+	((uint32_t*) command_to_notify_cache_size.memory)[0] = m_cache_size;
 	send(&command_to_notify_cache_size, sizeof(command_to_notify_cache_size));
 	m_ping_send_thread = new std::thread(&TcpClient::ping_thread_fn, this);
 	while(!m_is_connection_alive)
@@ -162,7 +162,7 @@ end:
 	return ret_status;
 }
 
-bool TcpClient::send(void *data, size_t size)
+bool TcpClient::send(void *data, uint32_t size)
 {
 	int read_size;
 	static std::mutex send_mutex;
@@ -178,15 +178,15 @@ bool TcpClient::send(void *data, size_t size)
 			m_sockfd, m_connected_cache_size, size
 		);
 		resize_cache_command.Command = ConnectionCommands::COMMAND_SET_MEMORY_SIZE_CAPACITY;
-		((size_t*)resize_cache_command.memory)[0] = size + 1024;
+		((uint32_t*)resize_cache_command.memory)[0] = size + 1024;
 		send_wrapper(m_sockfd, &resize_cache_command, sizeof(resize_cache_command));
 		read_size = receive_wrapper(m_sockfd, m_cache, m_cache_size);
 
 		// TODO CRITICAL!- this line repeat already existed lines below!!!!!!!!!!
 		if(((ConnectionCommand*)m_cache)->Command == COMMAND_SET_MEMORY_SIZE_CAPACITY)
 		{
-			size_t new_size = ((size_t *)(((ConnectionCommand*)m_cache)->memory))[0];
-			static const size_t MAX_ALLOCATION_SIZE = 100*1024*1024; // 100 MB
+			uint32_t new_size = ((uint32_t *)(((ConnectionCommand*)m_cache)->memory))[0];
+			static const uint32_t MAX_ALLOCATION_SIZE = 100*1024*1024; // 100 MB
 
 			if(new_size > MAX_ALLOCATION_SIZE)
 			{
@@ -215,7 +215,7 @@ bool TcpClient::send(void *data, size_t size)
 		{
 			// TODO - this line repeat already existed lines below
 			if(((ConnectionCommand*)m_cache)->Command == COMMAND_NOTIFY_CURRENT_MEMORY_SIZE)
-				m_connected_cache_size = ((size_t *)(((ConnectionCommand*)m_cache)->memory))[0];
+				m_connected_cache_size = ((uint32_t *)(((ConnectionCommand*)m_cache)->memory))[0];
 			else
 			{
 				fprintf(
@@ -239,8 +239,8 @@ bool TcpClient::send(void *data, size_t size)
 	{
 		if(((ConnectionCommand*)m_cache)->Command == COMMAND_SET_MEMORY_SIZE_CAPACITY)
 		{
-			size_t new_size = ((size_t *)(((ConnectionCommand*)m_cache)->memory))[0];
-			static const size_t MAX_ALLOCATION_SIZE = 100*1024*1024; // 100 MB
+			uint32_t new_size = ((uint32_t *)(((ConnectionCommand*)m_cache)->memory))[0];
+			static const uint32_t MAX_ALLOCATION_SIZE = 100*1024*1024; // 100 MB
 
 			if(new_size > MAX_ALLOCATION_SIZE)
 			{
@@ -265,7 +265,7 @@ bool TcpClient::send(void *data, size_t size)
 			read_size = receive_wrapper(m_sockfd, m_cache, m_cache_size);
 		}
 		else if(((ConnectionCommand*)m_cache)->Command == COMMAND_NOTIFY_CURRENT_MEMORY_SIZE)
-			m_connected_cache_size = ((size_t *)(((ConnectionCommand*)m_cache)->memory))[0];
+			m_connected_cache_size = ((uint32_t *)(((ConnectionCommand*)m_cache)->memory))[0];
 		else if(((ConnectionCommand*)m_cache)->Command == COMMAND_ALIVE)
 		{
 			// Do nothing in this case - this is repeating ping thread
@@ -287,7 +287,7 @@ bool TcpClient::send(void *data, size_t size)
 }
 
 const void *TcpClient::received_data(){return m_cache;}
-size_t TcpClient::receive_data_size(){return m_last_received_size;}
+uint32_t TcpClient::receive_data_size(){return m_last_received_size;}
 bool TcpClient::is_connected(){return m_is_connection_alive;}
 
 void TcpClient::disconnect()

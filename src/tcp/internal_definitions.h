@@ -29,7 +29,7 @@ struct ConnectionCommand
     char memory[128];
 };
 
-inline void send_wrapper(int sockfd, const void *data, size_t size)
+inline void send_wrapper(int sockfd, const void *data, uint32_t size)
 {
 #ifdef DEBUG_PRINTS
 	printf("%d: send_wrapper send_prepare %zu(%zu)\n", sockfd, size, sizeof(size));
@@ -41,10 +41,10 @@ inline void send_wrapper(int sockfd, const void *data, size_t size)
 	::send(sockfd, data, size, 0);
 }
 
-inline size_t receive_wrapper(int sockfd, void *cache, size_t max_size)
+inline uint32_t receive_wrapper(int sockfd, void *cache, uint32_t max_size)
 {
-	size_t ret;
-	size_t read_size = sizeof(ret);
+	uint32_t ret;
+	uint32_t read_size = sizeof(ret);
 
 	while(read_size > 0)
 	{

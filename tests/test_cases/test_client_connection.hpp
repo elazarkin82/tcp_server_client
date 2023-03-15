@@ -21,7 +21,7 @@ private:
 		virtual ~OnClientReceiveCallback() {};
 		void OnConnected() {printf("Server connected! %s:%d\n", m_parent->ip(), m_parent->port());};
 		void OnDisconnected() {printf("Server disconnected!\n");};
-		void OnDataReceived(void *data, size_t) {};
+		void OnDataReceived(void *data, uint32_t) {};
 	};
 
 	class OnServerReceiveCallback: public TcpServer::OnReceiveCallback
@@ -40,7 +40,7 @@ private:
 		{
 			printf("client %zu disconnected!\n", client_id);
 		}
-		void onRequestToRepeat(TcpServer::Client *client, void *data, size_t size)
+		void onRequestToRepeat(TcpServer::Client *client, void *data, uint32_t size)
 		{
 			const char test1_header[] = "hello from client!";
 			const char test2_header[] = "test_2_";

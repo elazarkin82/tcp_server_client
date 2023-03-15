@@ -25,15 +25,15 @@ public:
 		virtual ~OnConnectionStatusCallback() {};
 		virtual void OnConnected()=0;
 		virtual void OnDisconnected()=0;
-		virtual void OnDataReceived(void *data, size_t)=0;
+		virtual void OnDataReceived(void *data, uint32_t)=0;
 	};
 private:
 	uint32_t m_sockfd;
 	char m_ip_addr[32];
 	uint16_t m_port;
 	void *m_cache;
-	size_t m_cache_size, m_connected_cache_size;
-	size_t m_last_received_size;
+	uint32_t m_cache_size, m_connected_cache_size;
+	uint32_t m_last_received_size;
 	std::mutex m_cache_mutex;
 	std::thread *m_ping_send_thread;
 	uint64_t m_last_received_time;
@@ -45,9 +45,9 @@ public:
 
 	ConnectionStatus connect(OnConnectionStatusCallback *);
 	void disconnect();
-	bool send(void *data, size_t size);
+	bool send(void *data, uint32_t size);
 	const void *received_data();
-	size_t receive_data_size();
+	uint32_t receive_data_size();
 	bool is_connected();
 	void ping_thread_fn();
 	const char *ip();
