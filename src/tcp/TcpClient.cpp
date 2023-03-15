@@ -227,6 +227,7 @@ bool TcpClient::send(void *data, size_t size)
 		else
 		{
 			fprintf(stderr, "unexpected error in COMMAND_SET_MEMORY_SIZE_CAPACITY case_2!\n");
+			fprintf(stderr, "read_size=%u first_bytes=%.10s!\n", read_size, data);
 			exit(125);
 		}
 	}
